@@ -1,6 +1,7 @@
+from datetime import datetime
 from django.shortcuts import render
 from .serializers import RoomImageSerializer, RoomSerializer, BookingSerializer
-from .models import Room, RoomImage
+from .models import Room, RoomImage, Booking
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
@@ -48,3 +49,58 @@ class BookRoomView(APIView):
                             status=status.HTTP_201_CREATED)
         return Response({'error': 'invalid data'},
                         status=status.HTTP_400_BAD_REQUEST)
+
+
+class CheckOutView(APIView):
+    def post(self, request, booking_id):
+        try:
+            booking = Booking.objects.get(id=booking_id)
+        except Booking.DoesNotExist:
+            return Response({'error: invalid request'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.status != 'checked_in':
+            return Response({'error': f'you can not check out from status "{booking.status}"'}, status=status.HTTP_400_BAD_REQUEST)
+        booking.status = 'checked_out'
+        booking.save()
+        booking.room.is_available = True
+        booking.room.save()
+        return Response('checkedout successfully', status=status.HTTP_200_OK)
+
+
+class getBookings(APIView):
+
+    def get(self, request):
+        user = request.user
+
+        bookings = Booking.objects.filter(user=user)
+        serializer = BookingSerializer(bookings, many=True)
+        return Response(serializer.data)
+
+
+class ExtendBooking(APIView):
+    def post(self, request, booking_id):
+        try:
+            booking = Booking.objects.get(id=booking_id, user=request.user)
+        except Booking.DoesNotExist:
+            return Response({'error: invalid request'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.status != 'checked_in':
+            return Response({'error': f'you can not extend booking before checking in'}, status=status.HTTP_400_BAD_REQUEST)
+
+        check_out = request.data['check_out']
+        try:
+            check_out = datetime.strptime(check_out, "%Y-%m-%d").date()
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format. Use YYYY-MM-DD'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if check_out < booking.check_out:
+            return Response(
+                {'error': f'you can not extend from  "{booking.check_out}" to "{check_out}" '},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        booking.check_out = check_out
+        days = (check_out-booking.check_in).days
+        total_price = days*booking.room.price_per_night
+        booking.total_price = total_price
+        booking.save()
+        return Response('successfully extended')
