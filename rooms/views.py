@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
+from django.utils.dateparse import parse_date
 # Create your views here.
 
 
@@ -33,6 +34,33 @@ class GetRoomsView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class GetAvailableRooms(APIView):
+    def get(self, request):
+        check_in = parse_date(request.query_params.get('check_in'))
+        check_out = parse_date(request.query_params.get('check_out'))
+
+        if not check_in or not check_out:
+            return Response(
+                {"error": "check_in and check_out are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if check_in >= check_out:
+            return Response(
+                {"error": "check_out must be after check_in"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        available_rooms = (Room.objects.exclude(
+            bookings__status__in=['reserved', 'checked_in'],
+            bookings__check_in__lt=check_out,
+            bookings__check_out__gt=check_in,
+        ).distinct()
+        )
+        serializer = RoomSerializer(available_rooms, many=True)
+        return Response(serializer.data)
+
+
 class BookRoomView(APIView):
 
     def post(self, request):
@@ -43,11 +71,10 @@ class BookRoomView(APIView):
             if not room.is_available:
                 return Response({'error': 'Room is not available'}, status=440)
             serializer.save()
-            room.is_available = False
             room.save
             return Response({'message': 'booked succesfully'},
                             status=status.HTTP_201_CREATED)
-        return Response({'error': 'invalid data'},
+        return Response(serializer.errors,
                         status=status.HTTP_400_BAD_REQUEST)
 
 
