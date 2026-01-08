@@ -2,11 +2,15 @@ from datetime import datetime
 from django.shortcuts import render
 from .serializers import RoomImageSerializer, RoomSerializer, BookingSerializer
 from .models import Room, RoomImage, Booking
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 from django.utils.dateparse import parse_date
+from django.utils import timezone
+from datetime import timedelta
+from .utility import get_month_range,expand_dates
 # Create your views here.
 
 
@@ -59,6 +63,47 @@ class GetAvailableRooms(APIView):
         )
         serializer = RoomSerializer(available_rooms, many=True)
         return Response(serializer.data)
+
+class GetRoomDetailView(APIView):
+    def get(self,request,room_id):
+        today=timezone.now().date()
+        year=int(request.GET.get('year',today.year))
+        month=int(request.GET.get('month',today.month))
+        month_start,month_end=get_month_range(year,month)
+
+        room = get_object_or_404(Room,id=room_id)
+
+        bookings =Booking.objects.filter(
+            room=room,
+            status__in=['reserved','checked_in'],
+            check_in__lt=month_end + timedelta(days=1),
+            check_out__gt=month_start
+        )
+        booked_dates = set()
+
+        for booking in bookings:
+            start = max(booking.check_in, month_start)
+            end = min(booking.check_out, month_end + timedelta(days=1))
+
+            current_day = start
+            while current_day < end:
+                booked_dates.add(current_day.isoformat())
+                current_day += timedelta(days=1)
+
+        room_serializer = RoomSerializer(
+            room, context={'request': request}
+        )
+
+        return Response({
+            "room": room_serializer.data,
+            "calendar": {
+                "year": year,
+                "month": month,
+                "booked_dates": sorted(booked_dates)
+            }
+        })
+
+
 
 
 class BookRoomView(APIView):
