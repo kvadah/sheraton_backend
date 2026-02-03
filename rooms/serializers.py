@@ -63,7 +63,6 @@ class BookingSerializer(serializers.ModelSerializer):
         room = validated_data['room']
         check_in = validated_data['check_in']
         check_out = validated_data['check_out']
-
         days = (check_out - check_in).days
         total_price = days * room.price_per_night
 

@@ -8,6 +8,6 @@ urlpatterns = [
     path('bookings/', getBookings.as_view()),
     path('bookings/<int:booking_id>/extend/', ExtendBooking.as_view()),
     path('available_rooms/', GetAvailableRooms.as_view()),
-    path('<int:room_id>/', GetRoomDetailView.as_view())
+    path('<int:room_id>/', GetRoomDetailView.as_view()),
 
 ]

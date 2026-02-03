@@ -11,9 +11,6 @@ class User(AbstractUser):
     name = models.CharField(max_length=100)
     role= models.CharField(max_length=10,choices=ROLE_CHOICES,default='guest')
     
-
-
-
     def __str__(self):
         return self.name
     

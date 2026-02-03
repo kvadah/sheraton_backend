@@ -112,11 +112,8 @@ class BookRoomView(APIView):
         serializer = BookingSerializer(data=request.data, context={'request': request}
                                        )
         if serializer.is_valid():
-            room = serializer.validated_data['room']
-            if not room.is_available:
-                return Response({'error': 'Room is not available'}, status=440)
+            
             serializer.save()
-            room.save
             return Response({'message': 'booked succesfully'},
                             status=status.HTTP_201_CREATED)
         return Response(serializer.errors,
